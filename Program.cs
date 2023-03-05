@@ -10,12 +10,12 @@ Console.Clear();
 
 if (!SerialPort.GetPortNames().Any(x => x == portName))
 {
-    Console.WriteLine("A serial port with this number doesn't exist.");
+    Console.WriteLine("The port \"{0}\" doesn't exist.", portName);
     return;
 }
 
 SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
-serialPort.ReadTimeout = 10;
+serialPort.ReadTimeout = 100;
 serialPort.DataReceived += (sender, args) =>
 {
     string currentTime = DateTime.Now.ToLongTimeString();
@@ -25,7 +25,7 @@ serialPort.DataReceived += (sender, args) =>
     {
         var numbers = Regex.Matches(receivedData, @"\d+\.\d+");
 
-        MeteoInfo meteo = new MeteoInfo()
+        MeteoInfo meteoInfo = new MeteoInfo()
         {
             Time = currentTime,
             SensorName = "WMT700",
@@ -34,11 +34,11 @@ serialPort.DataReceived += (sender, args) =>
         };
 
         string filePath = @".\meteo.json";
-        string json = JsonSerializer.Serialize(meteo);
+        string json = JsonSerializer.Serialize(meteoInfo);
         File.AppendAllText(filePath, json);
 
         Console.SetCursorPosition(0, 1);
-        Console.WriteLine("{0}: Received message from {1} is written to the file \"{2}\"", meteo.Time, meteo.SensorName, filePath);
+        Console.WriteLine("{0}: Received message from {1} is written to the file \"{2}\"", meteoInfo.Time, meteoInfo.SensorName, filePath);
     }
 };
 
