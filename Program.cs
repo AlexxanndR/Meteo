@@ -42,10 +42,19 @@ serialPort.DataReceived += (sender, args) =>
     }
 };
 
-serialPort.Open();
+try
+{
+    serialPort.Open();
+}
+catch (Exception ex)
+{
+    Console.WriteLine("Port opening error: {0}", ex.Message);
+    return;
+}
 
 Console.SetCursorPosition(0, 0);
 Console.Write("Press ESC to stop program... ");
 while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
 
 serialPort.Close();
+
