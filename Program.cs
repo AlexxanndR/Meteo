@@ -1,60 +1,104 @@
-﻿using MeteoTask;
+﻿using Meteo;
+using MeteoTask;
 using System.Globalization;
 using System.IO.Ports;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
-Console.Write("Enter serial port number: ");
-string portName = "COM" + Console.ReadLine();
-Console.Clear();
-
-if (!SerialPort.GetPortNames().Any(x => x == portName))
+namespace Meteo
 {
-    Console.WriteLine("The port \"{0}\" doesn't exist.", portName);
-    return;
-}
-
-SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
-serialPort.ReadTimeout = 100;
-serialPort.DataReceived += (sender, args) =>
-{
-    string currentTime = DateTime.Now.ToLongTimeString();
-    string receivedData = serialPort.ReadExisting();
-
-    if (Regex.IsMatch(receivedData, @"^\$\d+\.\d+,\d+\.\d+\r\n"))
+    internal class Program
     {
-        var numbers = Regex.Matches(receivedData, @"\d+\.\d+");
+        private const string filePath = @".\meteo2.json";
+        private static List<MeteoInfo> meteoList = new List<MeteoInfo>();
+        private static StringBuilder buffer = new StringBuilder();
 
-        MeteoInfo meteoInfo = new MeteoInfo()
+        public static void Main(string[] args)
         {
-            Time = currentTime,
-            SensorName = "WMT700",
-            WindSpeed = float.Parse(numbers[0].Value, CultureInfo.InvariantCulture.NumberFormat),
-            WindDirection = float.Parse(numbers[1].Value, CultureInfo.InvariantCulture.NumberFormat)
-        };
+            Console.Write("Enter serial port number: ");
+            string portName = "COM" + Console.ReadLine();
+            Console.Clear();
 
-        string filePath = @".\meteo.json";
-        string json = JsonSerializer.Serialize(meteoInfo);
-        File.AppendAllText(filePath, json);
+            if (!SerialPort.GetPortNames().Any(x => x == portName))
+            {
+                Console.WriteLine("The port \"{0}\" doesn't exist.", portName);
+                return;
+            }
 
-        Console.SetCursorPosition(0, 1);
-        Console.WriteLine("{0}: Received message from {1} is written to the file \"{2}\"", meteoInfo.Time, meteoInfo.SensorName, filePath);
+            if (ReadFileData() == 0)
+                return;
+
+            SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
+            serialPort.ReadTimeout = 100;
+            serialPort.DataReceived += DataReceivedHandler;
+
+            try
+            {
+                serialPort.Open();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Port opening error: {0}", ex.Message);
+                return;
+            }
+
+            Console.Write("Receiving messages from serial port...\nPress ESC to end... ");
+            while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
+
+            serialPort.Close();
+        }
+
+        private static int ReadFileData()
+        {
+            if (!File.Exists(filePath))
+                File.Create(filePath);
+
+            string fileData = string.Empty;
+            try
+            {
+                fileData = File.ReadAllText(filePath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Reading from file error: {0}", ex.Message);
+                return 0;
+            }
+
+            if (Regex.IsMatch(fileData, @"^\[(\r|\n|.)*\]$", RegexOptions.Compiled))
+                meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
+
+            return fileData.Length;
+        }
+
+        private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+        {
+            string receivedData = ((SerialPort)sender).ReadExisting();
+            buffer.Append(receivedData);
+
+            var messages = Regex.Matches(buffer.ToString(), @"\$\d+\.\d+,\d+\.\d+\r\n", RegexOptions.Compiled);
+
+            if (messages.Count > 0)
+            {
+                foreach (Match message in messages)
+                {
+                    var numbers = Regex.Matches(message.Value, @"\d+\.\d+", RegexOptions.Compiled);
+
+                    meteoList.Add(new MeteoInfo
+                    {
+                        Time = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                        SensorName = "WMT700",
+                        WindSpeed = float.Parse(numbers[0].Value, CultureInfo.InvariantCulture.NumberFormat),
+                        WindDirection = float.Parse(numbers[1].Value, CultureInfo.InvariantCulture.NumberFormat)
+                    });
+
+                    string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList, new JsonSerializerOptions { WriteIndented = true });
+                    File.WriteAllText(filePath, json);
+
+                    string bufferData = buffer.ToString();
+                    buffer.Remove(bufferData.IndexOf(message.Value), message.Value.Length);
+                }
+            }
+        }
     }
-};
-
-try
-{
-    serialPort.Open();
 }
-catch (Exception ex)
-{
-    Console.WriteLine("Port opening error: {0}", ex.Message);
-    return;
-}
-
-Console.SetCursorPosition(0, 0);
-Console.Write("Press ESC to stop program... ");
-while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
-
-serialPort.Close();
-
