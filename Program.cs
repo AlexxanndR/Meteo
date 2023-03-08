@@ -1,5 +1,4 @@
 ﻿using Meteo;
-using MeteoTask;
 using System.Globalization;
 using System.IO.Ports;
 using System.Text;
@@ -10,7 +9,7 @@ namespace Meteo
 {
     internal class Program
     {
-        private const string filePath = @".\meteo2.json";
+        private const string filePath = @".\meteo.json";
         private static List<MeteoInfo> meteoList = new List<MeteoInfo>();
         private static StringBuilder buffer = new StringBuilder();
 
@@ -26,8 +25,15 @@ namespace Meteo
                 return;
             }
 
-            if (ReadFileData() == 0)
+            if (!File.Exists(filePath))
+                File.Create(filePath);
+
+            string? fileData = ReadFileData();
+            if (fileData == null)
                 return;
+
+            if (Regex.IsMatch(fileData, @"^\[(\r|\n|.)*\]$", RegexOptions.Compiled))
+                meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
 
             SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
             serialPort.ReadTimeout = 100;
@@ -43,18 +49,16 @@ namespace Meteo
                 return;
             }
 
+            Console.WriteLine("The data is written to a file in the program directory.");
             Console.Write("Receiving messages from serial port...\nPress ESC to end... ");
             while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
 
             serialPort.Close();
         }
 
-        private static int ReadFileData()
+        private static string? ReadFileData()
         {
-            if (!File.Exists(filePath))
-                File.Create(filePath);
-
-            string fileData = string.Empty;
+            string? fileData = null;
             try
             {
                 fileData = File.ReadAllText(filePath);
@@ -62,13 +66,9 @@ namespace Meteo
             catch (Exception ex)
             {
                 Console.WriteLine("Reading from file error: {0}", ex.Message);
-                return 0;
             }
 
-            if (Regex.IsMatch(fileData, @"^\[(\r|\n|.)*\]$", RegexOptions.Compiled))
-                meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
-
-            return fileData.Length;
+            return fileData;
         }
 
         private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
