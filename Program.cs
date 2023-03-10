@@ -1,4 +1,5 @@
 ﻿using Meteo;
+using MeteoTask;
 using System.Globalization;
 using System.IO.Ports;
 using System.Text;
@@ -32,8 +33,16 @@ namespace Meteo
             if (fileData == null)
                 return;
 
-            if (Regex.IsMatch(fileData, @"^\[(\r|\n|.)*\]$", RegexOptions.Compiled))
-                meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
+            try
+            {
+                if (fileData.StartsWith("[") && fileData.EndsWith("]"))
+                    meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("The file contains incorrect data.");
+                return;
+            }
 
             SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
             serialPort.ReadTimeout = 100;
@@ -78,27 +87,24 @@ namespace Meteo
 
             var messages = Regex.Matches(buffer.ToString(), @"\$\d+\.\d+,\d+\.\d+\r\n", RegexOptions.Compiled);
 
-            if (messages.Count > 0)
+            foreach (Match message in messages)
             {
-                foreach (Match message in messages)
+                var numbers = Regex.Matches(message.Value, @"\d+\.\d+", RegexOptions.Compiled);
+
+                meteoList.Add(new MeteoInfo
                 {
-                    var numbers = Regex.Matches(message.Value, @"\d+\.\d+", RegexOptions.Compiled);
+                    Time = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
+                    SensorName = "WMT700",
+                    WindSpeed = float.Parse(numbers[0].Value, CultureInfo.InvariantCulture.NumberFormat),
+                    WindDirection = float.Parse(numbers[1].Value, CultureInfo.InvariantCulture.NumberFormat)
+                });
 
-                    meteoList.Add(new MeteoInfo
-                    {
-                        Time = DateTime.Now.ToString("dd.MM.yyyy HH:mm:ss"),
-                        SensorName = "WMT700",
-                        WindSpeed = float.Parse(numbers[0].Value, CultureInfo.InvariantCulture.NumberFormat),
-                        WindDirection = float.Parse(numbers[1].Value, CultureInfo.InvariantCulture.NumberFormat)
-                    });
-
-                    string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList, new JsonSerializerOptions { WriteIndented = true });
-                    File.WriteAllText(filePath, json);
-
-                    string bufferData = buffer.ToString();
-                    buffer.Remove(bufferData.IndexOf(message.Value), message.Value.Length);
-                }
+                string bufferData = buffer.ToString();
+                buffer.Remove(bufferData.IndexOf(message.Value), message.Value.Length);
             }
+
+            string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(filePath, json);
         }
     }
 }
