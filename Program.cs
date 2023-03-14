@@ -11,7 +11,7 @@ namespace Meteo
 {
     internal class Program
     {
-        private const string filePath = @".\meteo3.json";
+        private const string filePath = @".\meteo.json";
         private static List<MeteoInfo> meteoList = new List<MeteoInfo>();
         private static StringBuilder buffer = new StringBuilder();
         private static int objectsToWriteCount = 0;
@@ -99,7 +99,7 @@ namespace Meteo
                     if (fs.Length > 0)
                     {
                         string resultData = ',' + data.Substring(1, data.Length - 1);
-                        fs.Seek(-3, SeekOrigin.End);
+                        fs.Seek(-3, SeekOrigin.End);                                    //'\r' '\n' ']'
                         sw.Write(resultData);
                     }
                     else
