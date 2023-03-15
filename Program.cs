@@ -68,12 +68,19 @@ namespace Meteo
         private static string? ReadDataFromFile()
         {
             string? fileData = null;
+
             try
             {
                 using (FileStream fs = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Read))
                 using (StreamReader sr = new StreamReader(fs))
                 {
-                    fileData = sr.ReadToEnd();
+                    char[] readBuffer = new char[1024];
+                    StringBuilder builder = new StringBuilder();
+
+                    while (sr.Read(readBuffer, 0, readBuffer.Length) > 0)
+                        builder.Append(readBuffer);
+
+                    fileData = builder.ToString();
                 };
             }
             catch (Exception ex)
@@ -81,7 +88,7 @@ namespace Meteo
                 Console.WriteLine("Reading from file error: {0}", ex.Message);
             }
 
-            return fileData;
+            return fileData?.Substring(0, fileData.IndexOf(']') + 1);
         }
 
         private static void WriteDataToFile(string data)
@@ -98,9 +105,7 @@ namespace Meteo
                         sw.Write(resultData);
                     }
                     else
-                    {
                         sw.Write(data);
-                    }
                 };
             }
             catch (Exception ex)
