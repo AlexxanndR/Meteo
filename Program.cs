@@ -1,7 +1,9 @@
 ﻿using Meteo;
 using MeteoTask;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO.Ports;
+using System.Reflection.PortableExecutable;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -14,7 +16,6 @@ namespace Meteo
         private const string filePath = @".\meteo.json";
         private static List<MeteoInfo> meteoList = new List<MeteoInfo>();
         private static StringBuilder buffer = new StringBuilder();
-        private static int objectsToWriteCount = 0;
 
         public static void Main(string[] args)
         {
@@ -34,7 +35,7 @@ namespace Meteo
 
             try
             {
-                if (fileData.StartsWith("[") && fileData.EndsWith("]"))
+                if (fileData.Length > 0)
                     meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
             }
             catch
@@ -57,15 +58,9 @@ namespace Meteo
                 return;
             }
 
-            Console.WriteLine("The data file is located in the application directory.");
+            Console.WriteLine("The data is written to a file in the program directory.");
             Console.Write("Receiving messages from serial port...\nPress ESC to end... ");
             while (Console.ReadKey(true).Key != ConsoleKey.Escape) { }
-
-            if (objectsToWriteCount > 0)
-            {
-                string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList.TakeLast(objectsToWriteCount).ToList(), new JsonSerializerOptions { WriteIndented = true });
-                WriteDataToFile(json);
-            }
 
             serialPort.Close();
         }
@@ -99,7 +94,7 @@ namespace Meteo
                     if (fs.Length > 0)
                     {
                         string resultData = ',' + data.Substring(1, data.Length - 1);
-                        fs.Seek(-3, SeekOrigin.End);                                    //'\r' '\n' ']'
+                        fs.Seek(-3, SeekOrigin.End);                                    //'\r' '\n' ']'                                
                         sw.Write(resultData);
                     }
                     else
@@ -128,8 +123,6 @@ namespace Meteo
 
             foreach (Match message in messages)
             {
-                objectsToWriteCount++;
-
                 var numbers = Regex.Matches(message.Value, @"\d+\.\d+", RegexOptions.Compiled);
 
                 meteoList.Add(new MeteoInfo
@@ -142,6 +135,13 @@ namespace Meteo
 
                 bufferData = buffer.ToString();
                 buffer.Remove(bufferData.IndexOf(message.Value), message.Value.Length);
+            }
+
+            if (messages.Count > 0)
+            {
+                string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList.GetRange(meteoList.Count - messages.Count, messages.Count),
+                                                                        new JsonSerializerOptions { WriteIndented = true });
+                WriteDataToFile(json);
             }
         }
     }
