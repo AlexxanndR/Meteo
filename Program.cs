@@ -124,7 +124,7 @@ namespace Meteo
             if (!bufferData.StartsWith('$'))
                 buffer.Remove(0, bufferData.IndexOf('$') + 1);
 
-            var messages = Regex.Matches(buffer.ToString(), @"\$\d+\.\d+,\d+\.\d+\r\n", RegexOptions.Compiled);
+            var messages = Regex.Matches(bufferData, @"\$\d+\.\d+,\d+\.\d+\r\n", RegexOptions.Compiled);
 
             foreach (Match message in messages)
             {
