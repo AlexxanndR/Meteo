@@ -29,20 +29,8 @@ namespace Meteo
                 return;
             }
 
-            string? fileData = ReadDataFromFile();
-            if (fileData == null)
-                return;
-
-            try
-            {
-                if (fileData.Length > 0)
-                    meteoList = JsonSerializer.Deserialize<List<MeteoInfo>>(fileData);
-            }
-            catch
-            {
-                Console.WriteLine("The file contains incorrect data.");
-                return;
-            }
+            if (File.Exists(filePath))
+                File.Create(filePath).Close();
 
             SerialPort serialPort = new SerialPort(portName, 2400, Parity.None, 8, StopBits.One);
             serialPort.ReadTimeout = 100;
@@ -65,32 +53,6 @@ namespace Meteo
             serialPort.Close();
         }
 
-        private static string? ReadDataFromFile()
-        {
-            string? fileData = null;
-
-            try
-            {
-                using (FileStream fs = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.Read))
-                using (StreamReader sr = new StreamReader(fs))
-                {
-                    char[] readBuffer = new char[1024];
-                    StringBuilder builder = new StringBuilder();
-
-                    while (sr.Read(readBuffer, 0, readBuffer.Length) > 0)
-                        builder.Append(readBuffer);
-
-                    fileData = builder.ToString();
-                };
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Reading from file error: {0}", ex.Message);
-            }
-
-            return fileData?.Substring(0, fileData.IndexOf(']') + 1);
-        }
-
         private static void WriteDataToFile(string data)
         {
             try
@@ -101,7 +63,7 @@ namespace Meteo
                     if (fs.Length > 0)
                     {
                         string resultData = ',' + data.Substring(1, data.Length - 1);
-                        fs.Seek(-3, SeekOrigin.End);                                    //'\r' '\n' ']'                                
+                        fs.Seek(-3, SeekOrigin.End);                                     //'\r' '\n' ']'                                
                         sw.Write(resultData);
                     }
                     else
@@ -110,7 +72,7 @@ namespace Meteo
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Writing to file error: {0}", ex.Message);
+                Console.WriteLine("\nWriting to file error: {0}", ex.Message);
             }
         }
 
@@ -144,9 +106,9 @@ namespace Meteo
 
             if (messages.Count > 0)
             {
-                string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList.GetRange(meteoList.Count - messages.Count, messages.Count),
-                                                                        new JsonSerializerOptions { WriteIndented = true });
+                string json = JsonSerializer.Serialize<List<MeteoInfo>>(meteoList, new JsonSerializerOptions { WriteIndented = true });
                 WriteDataToFile(json);
+                meteoList.Clear();
             }
         }
     }
